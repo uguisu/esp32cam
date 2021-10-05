@@ -22,9 +22,6 @@
 #include "fd_forward.h"
 #include "fr_forward.h"
 
-#define ENROLL_CONFIRM_TIMES 5
-#define FACE_ID_SAVE_NUMBER 7
-
 #define FACE_COLOR_WHITE  0x00FFFFFF
 #define FACE_COLOR_BLACK  0x00000000
 #define FACE_COLOR_RED    0x000000FF
@@ -57,7 +54,6 @@ httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
 static mtmn_config_t mtmn_config = {0};
-static face_id_list id_list = {0};
 
 static ra_filter_t * ra_filter_init(ra_filter_t * filter, size_t sample_size){
     memset(filter, 0, sizeof(ra_filter_t));
@@ -277,7 +273,6 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-
     ra_filter_init(&ra_filter, 20);
     
     mtmn_config.type = FAST;
@@ -294,8 +289,6 @@ void startCameraServer(){
     mtmn_config.o_threshold.nms = 0.7;
     mtmn_config.o_threshold.candidate_number = 1;
     
-    face_id_init(&id_list, FACE_ID_SAVE_NUMBER, ENROLL_CONFIRM_TIMES);
-    
     Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
@@ -308,4 +301,10 @@ void startCameraServer(){
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
+
+    // init
+    sensor_t * s = esp_camera_sensor_get();
+    if(s->pixformat == PIXFORMAT_JPEG)
+      s->set_framesize(s, FRAMESIZE_XGA);
+    s->set_quality(s, 63);
 }
