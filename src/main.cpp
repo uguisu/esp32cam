@@ -57,9 +57,9 @@ httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
 static mtmn_config_t mtmn_config = {0};
-static int8_t detection_enabled = 0;
-static int8_t recognition_enabled = 0;
-static int8_t is_enrolling = 0;
+// static int8_t detection_enabled = 0;
+// static int8_t recognition_enabled = 0;
+// static int8_t is_enrolling = 0;
 static face_id_list id_list = {0};
 
 static ra_filter_t * ra_filter_init(ra_filter_t * filter, size_t sample_size){
@@ -125,83 +125,83 @@ static int rgb_printf(dl_matrix3du_t *image_matrix, uint32_t color, const char *
     return len;
 }
 
-static void draw_face_boxes(dl_matrix3du_t *image_matrix, box_array_t *boxes, int face_id){
-    int x, y, w, h, i;
-    uint32_t color = FACE_COLOR_YELLOW;
-    if(face_id < 0){
-        color = FACE_COLOR_RED;
-    } else if(face_id > 0){
-        color = FACE_COLOR_GREEN;
-    }
-    fb_data_t fb;
-    fb.width = image_matrix->w;
-    fb.height = image_matrix->h;
-    fb.data = image_matrix->item;
-    fb.bytes_per_pixel = 3;
-    fb.format = FB_BGR888;
-    for (i = 0; i < boxes->len; i++){
-        // rectangle box
-        x = (int)boxes->box[i].box_p[0];
-        y = (int)boxes->box[i].box_p[1];
-        w = (int)boxes->box[i].box_p[2] - x + 1;
-        h = (int)boxes->box[i].box_p[3] - y + 1;
-        fb_gfx_drawFastHLine(&fb, x, y, w, color);
-        fb_gfx_drawFastHLine(&fb, x, y+h-1, w, color);
-        fb_gfx_drawFastVLine(&fb, x, y, h, color);
-        fb_gfx_drawFastVLine(&fb, x+w-1, y, h, color);
-#if 0
-        // landmark
-        int x0, y0, j;
-        for (j = 0; j < 10; j+=2) {
-            x0 = (int)boxes->landmark[i].landmark_p[j];
-            y0 = (int)boxes->landmark[i].landmark_p[j+1];
-            fb_gfx_fillRect(&fb, x0, y0, 3, 3, color);
-        }
-#endif
-    }
-}
+// static void draw_face_boxes(dl_matrix3du_t *image_matrix, box_array_t *boxes, int face_id){
+//     int x, y, w, h, i;
+//     uint32_t color = FACE_COLOR_YELLOW;
+//     if(face_id < 0){
+//         color = FACE_COLOR_RED;
+//     } else if(face_id > 0){
+//         color = FACE_COLOR_GREEN;
+//     }
+//     fb_data_t fb;
+//     fb.width = image_matrix->w;
+//     fb.height = image_matrix->h;
+//     fb.data = image_matrix->item;
+//     fb.bytes_per_pixel = 3;
+//     fb.format = FB_BGR888;
+//     for (i = 0; i < boxes->len; i++){
+//         // rectangle box
+//         x = (int)boxes->box[i].box_p[0];
+//         y = (int)boxes->box[i].box_p[1];
+//         w = (int)boxes->box[i].box_p[2] - x + 1;
+//         h = (int)boxes->box[i].box_p[3] - y + 1;
+//         fb_gfx_drawFastHLine(&fb, x, y, w, color);
+//         fb_gfx_drawFastHLine(&fb, x, y+h-1, w, color);
+//         fb_gfx_drawFastVLine(&fb, x, y, h, color);
+//         fb_gfx_drawFastVLine(&fb, x+w-1, y, h, color);
+// #if 0
+//         // landmark
+//         int x0, y0, j;
+//         for (j = 0; j < 10; j+=2) {
+//             x0 = (int)boxes->landmark[i].landmark_p[j];
+//             y0 = (int)boxes->landmark[i].landmark_p[j+1];
+//             fb_gfx_fillRect(&fb, x0, y0, 3, 3, color);
+//         }
+// #endif
+//     }
+// }
 
-static int run_face_recognition(dl_matrix3du_t *image_matrix, box_array_t *net_boxes){
-    dl_matrix3du_t *aligned_face = NULL;
-    int matched_id = 0;
+// static int run_face_recognition(dl_matrix3du_t *image_matrix, box_array_t *net_boxes){
+//     dl_matrix3du_t *aligned_face = NULL;
+//     int matched_id = 0;
 
-    aligned_face = dl_matrix3du_alloc(1, FACE_WIDTH, FACE_HEIGHT, 3);
-    if(!aligned_face){
-        Serial.println("Could not allocate face recognition buffer");
-        return matched_id;
-    }
-    if (align_face(net_boxes, image_matrix, aligned_face) == ESP_OK){
-        if (is_enrolling == 1){
-            int8_t left_sample_face = enroll_face(&id_list, aligned_face);
+//     aligned_face = dl_matrix3du_alloc(1, FACE_WIDTH, FACE_HEIGHT, 3);
+//     if(!aligned_face){
+//         Serial.println("Could not allocate face recognition buffer");
+//         return matched_id;
+//     }
+//     if (align_face(net_boxes, image_matrix, aligned_face) == ESP_OK){
+//         if (is_enrolling == 1){
+//             int8_t left_sample_face = enroll_face(&id_list, aligned_face);
 
-            if(left_sample_face == (ENROLL_CONFIRM_TIMES - 1)){
-                Serial.printf("Enrolling Face ID: %d\n", id_list.tail);
-            }
-            Serial.printf("Enrolling Face ID: %d sample %d\n", id_list.tail, ENROLL_CONFIRM_TIMES - left_sample_face);
-            rgb_printf(image_matrix, FACE_COLOR_CYAN, "ID[%u] Sample[%u]", id_list.tail, ENROLL_CONFIRM_TIMES - left_sample_face);
-            if (left_sample_face == 0){
-                is_enrolling = 0;
-                Serial.printf("Enrolled Face ID: %d\n", id_list.tail);
-            }
-        } else {
-            matched_id = recognize_face(&id_list, aligned_face);
-            if (matched_id >= 0) {
-                Serial.printf("Match Face ID: %u\n", matched_id);
-                rgb_printf(image_matrix, FACE_COLOR_GREEN, "Hello Subject %u", matched_id);
-            } else {
-                Serial.println("No Match Found");
-                rgb_print(image_matrix, FACE_COLOR_RED, "Intruder Alert!");
-                matched_id = -1;
-            }
-        }
-    } else {
-        Serial.println("Face Not Aligned");
-        //rgb_print(image_matrix, FACE_COLOR_YELLOW, "Human Detected");
-    }
+//             if(left_sample_face == (ENROLL_CONFIRM_TIMES - 1)){
+//                 Serial.printf("Enrolling Face ID: %d\n", id_list.tail);
+//             }
+//             Serial.printf("Enrolling Face ID: %d sample %d\n", id_list.tail, ENROLL_CONFIRM_TIMES - left_sample_face);
+//             rgb_printf(image_matrix, FACE_COLOR_CYAN, "ID[%u] Sample[%u]", id_list.tail, ENROLL_CONFIRM_TIMES - left_sample_face);
+//             if (left_sample_face == 0){
+//                 is_enrolling = 0;
+//                 Serial.printf("Enrolled Face ID: %d\n", id_list.tail);
+//             }
+//         } else {
+//             matched_id = recognize_face(&id_list, aligned_face);
+//             if (matched_id >= 0) {
+//                 Serial.printf("Match Face ID: %u\n", matched_id);
+//                 rgb_printf(image_matrix, FACE_COLOR_GREEN, "Hello Subject %u", matched_id);
+//             } else {
+//                 Serial.println("No Match Found");
+//                 rgb_print(image_matrix, FACE_COLOR_RED, "Intruder Alert!");
+//                 matched_id = -1;
+//             }
+//         }
+//     } else {
+//         Serial.println("Face Not Aligned");
+//         //rgb_print(image_matrix, FACE_COLOR_YELLOW, "Human Detected");
+//     }
 
-    dl_matrix3du_free(aligned_face);
-    return matched_id;
-}
+//     dl_matrix3du_free(aligned_face);
+//     return matched_id;
+// }
 
 static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len){
     jpg_chunking_t *j = (jpg_chunking_t *)arg;
@@ -215,92 +215,92 @@ static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size
     return len;
 }
 
-static esp_err_t capture_handler(httpd_req_t *req){
-    camera_fb_t * fb = NULL;
-    esp_err_t res = ESP_OK;
-    int64_t fr_start = esp_timer_get_time();
+// static esp_err_t capture_handler(httpd_req_t *req){
+//     camera_fb_t * fb = NULL;
+//     esp_err_t res = ESP_OK;
+//     int64_t fr_start = esp_timer_get_time();
 
-    fb = esp_camera_fb_get();
-    if (!fb) {
-        Serial.println("Camera capture failed");
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
+//     fb = esp_camera_fb_get();
+//     if (!fb) {
+//         Serial.println("Camera capture failed");
+//         httpd_resp_send_500(req);
+//         return ESP_FAIL;
+//     }
 
-    httpd_resp_set_type(req, "image/jpeg");
-    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+//     httpd_resp_set_type(req, "image/jpeg");
+//     httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+//     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
-    size_t out_len, out_width, out_height;
-    uint8_t * out_buf;
-    bool s;
-    bool detected = false;
-    int face_id = 0;
-    if(!detection_enabled || fb->width > 400){
-        size_t fb_len = 0;
-        if(fb->format == PIXFORMAT_JPEG){
-            fb_len = fb->len;
-            res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-        } else {
-            jpg_chunking_t jchunk = {req, 0};
-            res = frame2jpg_cb(fb, 80, jpg_encode_stream, &jchunk)?ESP_OK:ESP_FAIL;
-            httpd_resp_send_chunk(req, NULL, 0);
-            fb_len = jchunk.len;
-        }
-        esp_camera_fb_return(fb);
-        int64_t fr_end = esp_timer_get_time();
-        Serial.printf("JPG: %uB %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
-        return res;
-    }
+//     size_t out_len, out_width, out_height;
+//     uint8_t * out_buf;
+//     bool s;
+//     bool detected = false;
+//     int face_id = 0;
+//     if(!detection_enabled || fb->width > 400){
+//         size_t fb_len = 0;
+//         if(fb->format == PIXFORMAT_JPEG){
+//             fb_len = fb->len;
+//             res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
+//         } else {
+//             jpg_chunking_t jchunk = {req, 0};
+//             res = frame2jpg_cb(fb, 80, jpg_encode_stream, &jchunk)?ESP_OK:ESP_FAIL;
+//             httpd_resp_send_chunk(req, NULL, 0);
+//             fb_len = jchunk.len;
+//         }
+//         esp_camera_fb_return(fb);
+//         int64_t fr_end = esp_timer_get_time();
+//         Serial.printf("JPG: %uB %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
+//         return res;
+//     }
 
-    dl_matrix3du_t *image_matrix = dl_matrix3du_alloc(1, fb->width, fb->height, 3);
-    if (!image_matrix) {
-        esp_camera_fb_return(fb);
-        Serial.println("dl_matrix3du_alloc failed");
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
+//     dl_matrix3du_t *image_matrix = dl_matrix3du_alloc(1, fb->width, fb->height, 3);
+//     if (!image_matrix) {
+//         esp_camera_fb_return(fb);
+//         Serial.println("dl_matrix3du_alloc failed");
+//         httpd_resp_send_500(req);
+//         return ESP_FAIL;
+//     }
 
-    out_buf = image_matrix->item;
-    out_len = fb->width * fb->height * 3;
-    out_width = fb->width;
-    out_height = fb->height;
+//     out_buf = image_matrix->item;
+//     out_len = fb->width * fb->height * 3;
+//     out_width = fb->width;
+//     out_height = fb->height;
 
-    s = fmt2rgb888(fb->buf, fb->len, fb->format, out_buf);
-    esp_camera_fb_return(fb);
-    if(!s){
-        dl_matrix3du_free(image_matrix);
-        Serial.println("to rgb888 failed");
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
+//     s = fmt2rgb888(fb->buf, fb->len, fb->format, out_buf);
+//     esp_camera_fb_return(fb);
+//     if(!s){
+//         dl_matrix3du_free(image_matrix);
+//         Serial.println("to rgb888 failed");
+//         httpd_resp_send_500(req);
+//         return ESP_FAIL;
+//     }
 
-    box_array_t *net_boxes = face_detect(image_matrix, &mtmn_config);
+//     box_array_t *net_boxes = face_detect(image_matrix, &mtmn_config);
 
-    if (net_boxes){
-        detected = true;
-        if(recognition_enabled){
-            face_id = run_face_recognition(image_matrix, net_boxes);
-        }
-        draw_face_boxes(image_matrix, net_boxes, face_id);
-        free(net_boxes->score);
-        free(net_boxes->box);
-        free(net_boxes->landmark);
-        free(net_boxes);
-    }
+//     if (net_boxes){
+//         detected = true;
+//         if(recognition_enabled){
+//             face_id = run_face_recognition(image_matrix, net_boxes);
+//         }
+//         draw_face_boxes(image_matrix, net_boxes, face_id);
+//         free(net_boxes->score);
+//         free(net_boxes->box);
+//         free(net_boxes->landmark);
+//         free(net_boxes);
+//     }
 
-    jpg_chunking_t jchunk = {req, 0};
-    s = fmt2jpg_cb(out_buf, out_len, out_width, out_height, PIXFORMAT_RGB888, 90, jpg_encode_stream, &jchunk);
-    dl_matrix3du_free(image_matrix);
-    if(!s){
-        Serial.println("JPEG compression failed");
-        return ESP_FAIL;
-    }
+//     jpg_chunking_t jchunk = {req, 0};
+//     s = fmt2jpg_cb(out_buf, out_len, out_width, out_height, PIXFORMAT_RGB888, 90, jpg_encode_stream, &jchunk);
+//     dl_matrix3du_free(image_matrix);
+//     if(!s){
+//         Serial.println("JPEG compression failed");
+//         return ESP_FAIL;
+//     }
 
-    int64_t fr_end = esp_timer_get_time();
-    Serial.printf("FACE: %uB %ums %s%d\n", (uint32_t)(jchunk.len), (uint32_t)((fr_end - fr_start)/1000), detected?"DETECTED ":"", face_id);
-    return res;
-}
+//     int64_t fr_end = esp_timer_get_time();
+//     Serial.printf("FACE: %uB %ums %s%d\n", (uint32_t)(jchunk.len), (uint32_t)((fr_end - fr_start)/1000), detected?"DETECTED ":"", face_id);
+//     return res;
+// }
 
 static esp_err_t stream_handler(httpd_req_t *req){
     camera_fb_t * fb = NULL;
@@ -342,7 +342,8 @@ static esp_err_t stream_handler(httpd_req_t *req){
             fr_face = fr_start;
             fr_encode = fr_start;
             fr_recognize = fr_start;
-            if(!detection_enabled || fb->width > 400){
+            // if(!detection_enabled || fb->width > 400){
+            if(fb->width > 400){
                 if(fb->format != PIXFORMAT_JPEG){
                     bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
                     esp_camera_fb_return(fb);
@@ -369,24 +370,24 @@ static esp_err_t stream_handler(httpd_req_t *req){
                     } else {
                         fr_ready = esp_timer_get_time();
                         box_array_t *net_boxes = NULL;
-                        if(detection_enabled){
-                            net_boxes = face_detect(image_matrix, &mtmn_config);
-                        }
+                        // if(detection_enabled){
+                        //     net_boxes = face_detect(image_matrix, &mtmn_config);
+                        // }
                         fr_face = esp_timer_get_time();
                         fr_recognize = fr_face;
                         if (net_boxes || fb->format != PIXFORMAT_JPEG){
-                            if(net_boxes){
-                                detected = true;
-                                if(recognition_enabled){
-                                    face_id = run_face_recognition(image_matrix, net_boxes);
-                                }
-                                fr_recognize = esp_timer_get_time();
-                                draw_face_boxes(image_matrix, net_boxes, face_id);
-                                free(net_boxes->score);
-                                free(net_boxes->box);
-                                free(net_boxes->landmark);
-                                free(net_boxes);
-                            }
+                            // if(net_boxes){
+                            //     detected = true;
+                            //     if(recognition_enabled){
+                            //         face_id = run_face_recognition(image_matrix, net_boxes);
+                            //     }
+                            //     fr_recognize = esp_timer_get_time();
+                            //     draw_face_boxes(image_matrix, net_boxes, face_id);
+                            //     free(net_boxes->score);
+                            //     free(net_boxes->box);
+                            //     free(net_boxes->landmark);
+                            //     free(net_boxes);
+                            // }
                             if(!fmt2jpg(image_matrix->item, fb->width*fb->height*3, fb->width, fb->height, PIXFORMAT_RGB888, 90, &_jpg_buf, &_jpg_buf_len)){
                                 Serial.println("fmt2jpg failed");
                                 res = ESP_FAIL;
@@ -424,12 +425,14 @@ static esp_err_t stream_handler(httpd_req_t *req){
         if(res != ESP_OK){
             break;
         }
+
+        // TODO debug
         int64_t fr_end = esp_timer_get_time();
 
         int64_t ready_time = (fr_ready - fr_start)/1000;
         int64_t face_time = (fr_face - fr_ready)/1000;
-        int64_t recognize_time = (fr_recognize - fr_face)/1000;
-        int64_t encode_time = (fr_encode - fr_recognize)/1000;
+        // int64_t recognize_time = (fr_recognize - fr_face)/1000;
+        // int64_t encode_time = (fr_encode - fr_recognize)/1000;
         int64_t process_time = (fr_encode - fr_start)/1000;
         
         int64_t frame_time = fr_end - last_frame;
@@ -440,9 +443,12 @@ static esp_err_t stream_handler(httpd_req_t *req){
             (uint32_t)(_jpg_buf_len),
             (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time,
             avg_frame_time, 1000.0 / avg_frame_time,
-            (uint32_t)ready_time, (uint32_t)face_time, (uint32_t)recognize_time, (uint32_t)encode_time, (uint32_t)process_time,
+            // (uint32_t)ready_time, (uint32_t)face_time, (uint32_t)recognize_time, (uint32_t)encode_time, (uint32_t)process_time,
+            (uint32_t)ready_time, (uint32_t)face_time, (uint32_t) 0, (uint32_t) 0, (uint32_t)process_time,
             (detected)?"DETECTED ":"", face_id
         );
+
+
     }
 
     last_frame = 0;
@@ -511,19 +517,19 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "special_effect")) res = s->set_special_effect(s, val);
     else if(!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, val);
     else if(!strcmp(variable, "ae_level")) res = s->set_ae_level(s, val);
-    else if(!strcmp(variable, "face_detect")) {
-        detection_enabled = val;
-        if(!detection_enabled) {
-            recognition_enabled = 0;
-        }
-    }
-    else if(!strcmp(variable, "face_enroll")) is_enrolling = val;
-    else if(!strcmp(variable, "face_recognize")) {
-        recognition_enabled = val;
-        if(recognition_enabled){
-            detection_enabled = val;
-        }
-    }
+    // else if(!strcmp(variable, "face_detect")) {
+    //     detection_enabled = val;
+    //     if(!detection_enabled) {
+    //         recognition_enabled = 0;
+    //     }
+    // }
+    // else if(!strcmp(variable, "face_enroll")) is_enrolling = val;
+    // else if(!strcmp(variable, "face_recognize")) {
+    //     recognition_enabled = val;
+    //     if(recognition_enabled){
+    //         detection_enabled = val;
+    //     }
+    // }
     else {
         res = -1;
     }
@@ -536,47 +542,47 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     return httpd_resp_send(req, NULL, 0);
 }
 
-static esp_err_t status_handler(httpd_req_t *req){
-    static char json_response[1024];
+// static esp_err_t status_handler(httpd_req_t *req){
+//     static char json_response[1024];
 
-    sensor_t * s = esp_camera_sensor_get();
-    char * p = json_response;
-    *p++ = '{';
+//     sensor_t * s = esp_camera_sensor_get();
+//     char * p = json_response;
+//     *p++ = '{';
 
-    p+=sprintf(p, "\"framesize\":%u,", s->status.framesize);
-    p+=sprintf(p, "\"quality\":%u,", s->status.quality);
-    p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
-    p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);
-    p+=sprintf(p, "\"saturation\":%d,", s->status.saturation);
-    p+=sprintf(p, "\"sharpness\":%d,", s->status.sharpness);
-    p+=sprintf(p, "\"special_effect\":%u,", s->status.special_effect);
-    p+=sprintf(p, "\"wb_mode\":%u,", s->status.wb_mode);
-    p+=sprintf(p, "\"awb\":%u,", s->status.awb);
-    p+=sprintf(p, "\"awb_gain\":%u,", s->status.awb_gain);
-    p+=sprintf(p, "\"aec\":%u,", s->status.aec);
-    p+=sprintf(p, "\"aec2\":%u,", s->status.aec2);
-    p+=sprintf(p, "\"ae_level\":%d,", s->status.ae_level);
-    p+=sprintf(p, "\"aec_value\":%u,", s->status.aec_value);
-    p+=sprintf(p, "\"agc\":%u,", s->status.agc);
-    p+=sprintf(p, "\"agc_gain\":%u,", s->status.agc_gain);
-    p+=sprintf(p, "\"gainceiling\":%u,", s->status.gainceiling);
-    p+=sprintf(p, "\"bpc\":%u,", s->status.bpc);
-    p+=sprintf(p, "\"wpc\":%u,", s->status.wpc);
-    p+=sprintf(p, "\"raw_gma\":%u,", s->status.raw_gma);
-    p+=sprintf(p, "\"lenc\":%u,", s->status.lenc);
-    p+=sprintf(p, "\"vflip\":%u,", s->status.vflip);
-    p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
-    p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
-    p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
-    p+=sprintf(p, "\"face_detect\":%u,", detection_enabled);
-    p+=sprintf(p, "\"face_enroll\":%u,", is_enrolling);
-    p+=sprintf(p, "\"face_recognize\":%u", recognition_enabled);
-    *p++ = '}';
-    *p++ = 0;
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    return httpd_resp_send(req, json_response, strlen(json_response));
-}
+//     p+=sprintf(p, "\"framesize\":%u,", s->status.framesize);
+//     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
+//     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
+//     p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);
+//     p+=sprintf(p, "\"saturation\":%d,", s->status.saturation);
+//     p+=sprintf(p, "\"sharpness\":%d,", s->status.sharpness);
+//     p+=sprintf(p, "\"special_effect\":%u,", s->status.special_effect);
+//     p+=sprintf(p, "\"wb_mode\":%u,", s->status.wb_mode);
+//     p+=sprintf(p, "\"awb\":%u,", s->status.awb);
+//     p+=sprintf(p, "\"awb_gain\":%u,", s->status.awb_gain);
+//     p+=sprintf(p, "\"aec\":%u,", s->status.aec);
+//     p+=sprintf(p, "\"aec2\":%u,", s->status.aec2);
+//     p+=sprintf(p, "\"ae_level\":%d,", s->status.ae_level);
+//     p+=sprintf(p, "\"aec_value\":%u,", s->status.aec_value);
+//     p+=sprintf(p, "\"agc\":%u,", s->status.agc);
+//     p+=sprintf(p, "\"agc_gain\":%u,", s->status.agc_gain);
+//     p+=sprintf(p, "\"gainceiling\":%u,", s->status.gainceiling);
+//     p+=sprintf(p, "\"bpc\":%u,", s->status.bpc);
+//     p+=sprintf(p, "\"wpc\":%u,", s->status.wpc);
+//     p+=sprintf(p, "\"raw_gma\":%u,", s->status.raw_gma);
+//     p+=sprintf(p, "\"lenc\":%u,", s->status.lenc);
+//     p+=sprintf(p, "\"vflip\":%u,", s->status.vflip);
+//     p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
+//     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
+//     p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
+//     p+=sprintf(p, "\"face_detect\":%u,", detection_enabled);
+//     p+=sprintf(p, "\"face_enroll\":%u,", is_enrolling);
+//     p+=sprintf(p, "\"face_recognize\":%u", recognition_enabled);
+//     *p++ = '}';
+//     *p++ = 0;
+//     httpd_resp_set_type(req, "application/json");
+//     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+//     return httpd_resp_send(req, json_response, strlen(json_response));
+// }
 
 static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");
@@ -598,12 +604,12 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    httpd_uri_t status_uri = {
-        .uri       = "/status",
-        .method    = HTTP_GET,
-        .handler   = status_handler,
-        .user_ctx  = NULL
-    };
+    // httpd_uri_t status_uri = {
+    //     .uri       = "/status",
+    //     .method    = HTTP_GET,
+    //     .handler   = status_handler,
+    //     .user_ctx  = NULL
+    // };
 
     httpd_uri_t cmd_uri = {
         .uri       = "/control",
@@ -612,12 +618,12 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    httpd_uri_t capture_uri = {
-        .uri       = "/capture",
-        .method    = HTTP_GET,
-        .handler   = capture_handler,
-        .user_ctx  = NULL
-    };
+    // httpd_uri_t capture_uri = {
+    //     .uri       = "/capture",
+    //     .method    = HTTP_GET,
+    //     .handler   = capture_handler,
+    //     .user_ctx  = NULL
+    // };
 
    httpd_uri_t stream_uri = {
         .uri       = "/stream",
@@ -649,8 +655,8 @@ void startCameraServer(){
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
-        httpd_register_uri_handler(camera_httpd, &status_uri);
-        httpd_register_uri_handler(camera_httpd, &capture_uri);
+        // httpd_register_uri_handler(camera_httpd, &status_uri);
+        // httpd_register_uri_handler(camera_httpd, &capture_uri);
     }
 
     config.server_port += 1;
